@@ -24,6 +24,9 @@ yarn-error.log*
 .firebase
 firebase-debug.log
 
+# Secrets - DO NOT COMMIT
+frontend/src/firebase.ts
+
 # OS-specific
 .DS_Store
 Thumbs.db
