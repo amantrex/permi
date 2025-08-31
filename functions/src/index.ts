@@ -80,3 +80,42 @@ export const logConsent = onRequest({ cors: true }, async (request, response) =>
         response.status(500).send({ error: "Internal server error" });
     }
 });
+
+/**
+ * Submits a DSAR (Data Subject Access Request) from a public form.
+ */
+export const submitDsarRequest = onRequest({ cors: true }, async (request, response) => {
+    if (request.method !== 'POST') {
+        response.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    const { userIdentifier, requestType, notes } = request.body;
+
+    if (!userIdentifier || !requestType) {
+        logger.error("DSAR request missing userIdentifier or requestType");
+        response.status(400).send({ error: "Email/User ID and Request Type are required." });
+        return;
+    }
+
+    if (!['access', 'erasure'].includes(requestType)) {
+        logger.error(`Invalid requestType: ${requestType}`);
+        response.status(400).send({ error: "Invalid request type." });
+        return;
+    }
+
+    try {
+        await admin.firestore().collection("dsar_requests").add({
+            userIdentifier,
+            requestType,
+            notes: notes || "",
+            status: "pending",
+            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            completedAt: null,
+        });
+        response.status(201).send({ success: true, message: "Request submitted successfully." });
+    } catch (error) {
+        logger.error("Error submitting DSAR request:", error);
+        response.status(500).send({ error: "Internal server error" });
+    }
+});
