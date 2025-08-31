@@ -52,9 +52,15 @@ const ConsentPage = () => {
     const consentsCollectionRef = collection(db, "consent_configurations");
 
     const fetchConsents = useCallback(async () => {
-        const q = query(consentsCollectionRef, orderBy("createdAt", "desc"));
-        const data = await getDocs(q);
-        setConsents(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })) as ConsentConfiguration[]);
+        try {
+            const q = query(consentsCollectionRef, orderBy("createdAt", "desc"));
+            const data = await getDocs(q);
+            setConsents(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })) as ConsentConfiguration[]);
+        } catch (error) {
+            console.error("Fetch Error:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            alert(`Could not fetch consent configurations: ${errorMessage}`);
+        }
     }, [consentsCollectionRef]);
 
     useEffect(() => { fetchConsents(); }, [fetchConsents]);
@@ -107,21 +113,35 @@ const ConsentPage = () => {
         const finalCategories = categories.map(cat => ({ ...cat, id: cat.name.toLowerCase().replace(/\s+/g, '-') }));
         const dataToSave = { ...formState, categories: finalCategories };
 
-        if (editingId) {
-            const consentDoc = doc(db, "consent_configurations", editingId);
-            await updateDoc(consentDoc, dataToSave);
-        } else {
-            await addDoc(consentsCollectionRef, { ...dataToSave, createdAt: Timestamp.now() });
+        try {
+            if (editingId) {
+                const consentDoc = doc(db, "consent_configurations", editingId);
+                await updateDoc(consentDoc, dataToSave);
+                const updatedConsent = { ...dataToSave, id: editingId, createdAt: consents.find(c => c.id === editingId)!.createdAt };
+                setConsents(consents.map(c => c.id === editingId ? updatedConsent : c));
+            } else {
+                const newDocRef = await addDoc(consentsCollectionRef, { ...dataToSave, createdAt: Timestamp.now() });
+                const newConsent = { ...dataToSave, id: newDocRef.id, createdAt: Timestamp.now() };
+                setConsents([newConsent, ...consents]);
+            }
+            resetForm();
+        } catch (error) {
+            console.error("Save Error:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            alert(`Failed to save configuration: ${errorMessage}`);
         }
-        
-        fetchConsents();
-        resetForm();
     };
 
     const handleDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this configuration?')) {
-            await deleteDoc(doc(db, "consent_configurations", id));
-            fetchConsents();
+            try {
+                await deleteDoc(doc(db, "consent_configurations", id));
+                setConsents(consents.filter(c => c.id !== id));
+            } catch (error) {
+                console.error("Delete Error:", error);
+                const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+                alert(`Failed to delete configuration: ${errorMessage}`);
+            }
         }
     };
 
